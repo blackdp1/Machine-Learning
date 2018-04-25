@@ -1,0 +1,79 @@
+---
+title: "Practical Machine Learning Project"
+author: "David Black"
+date: "April 2018"
+output: 
+  html_document:
+    keep_md: true
+---
+##Background
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants.
+
+###Step 1. Load the data
+```{r}
+library("rattle")
+library("randomForest")
+library("caret")
+training=read.csv("pml-training.csv")
+testing=read.csv("pml-testing.csv")
+```
+###Step 2. Clean the data  
+Remove columns that are not needed and that have NA's. Data started with 160 variables and narrowed down to 53.
+```{r}
+set.seed(1234)
+CleanTrain=training[,-c(1:7)]
+CleanTest=testing[,-c(1:7)]
+
+CleanTrain=CleanTrain[,colSums(is.na(CleanTrain))==0]
+CleanTrain=CleanTrain[,sapply(CleanTrain[,-c(86)],is.numeric)]
+
+CleanTest=CleanTest[,colSums(is.na(CleanTest))==0]
+CleanTest=CleanTest[,sapply(CleanTest[,-c(86)],is.numeric)]
+
+```
+###Step 3. Partition the data
+Partition the data into a training set (70%) and testing set (30%)
+
+```{r}
+inTrain=createDataPartition(CleanTrain$classe, p=.70,list=FALSE)
+trainData=CleanTrain[inTrain, ]
+testData=CleanTrain[-inTrain, ]
+```
+
+###Step 4. Building prediction models
+Three prediction methods will be evaluated with the cross-validation data set as best fit according to the accuracy. The methods will be: Classification Tree, Random Forest, and Boosting modeling.
+
+###a.) Predict with Classification Tree
+```{r}
+ModelFitDT=train(classe ~., method="rpart",data=trainData)
+fancyRpartPlot(ModelFitDT$finalModel)
+predictDT=predict(ModelFitDT,newdata=testData)
+confusionMatrix(testData$classe,predictDT)
+```
+Accuracy is at 49%, which is not a very good fit. The out-of-sample error was 100-49 = 51%
+
+###b.). Predict with random forests
+```{r}
+ModelFitRF=randomForest(classe ~., data=trainData)
+predictRF=predict(ModelFitRF,newdata=testData)
+confusionMatrix(testData$classe,predictRF)
+```
+
+Accuracy increases to 99.6%, much better than a classification prediction method. If the predictors are highly correlated the random forest method may be able to decouple some of that through selecting subsets of trees. The out-of sample error was 100 - 99.6 = .04%
+
+
+###c.). Predict with generalized boosting
+```{r}
+ModelFitGBM=train(classe ~., method="gbm",data=trainData,verbose = FALSE)
+predictGBM=predict(ModelFitGBM,newdata=testData)
+confusionMatrix(testData$classe,predictGBM)
+```
+Though the accuracy was good at 96.4%, the random forest model was a better fit. The out-of-sample error was 100 - 96.4 = 3.6%
+
+###Step 6. Final prediction using the random forest model
+```{r}
+finalPrediction=predict(ModelFitRF,testing)
+finalPrediction
+```
+
